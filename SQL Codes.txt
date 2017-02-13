@@ -1,0 +1,116 @@
+USE kbc_test_db;
+
+a. Return the ClientID, Age and Sex of all customers who have more than four credit transactions
+SELECT a1.client,						
+       a1.age,					             
+       a1.sex							
+       FROM soc_dem as a1
+       INNER JOIN inflow_outflow as a2
+       ON a1.client = a2.client
+       WHERE a2.TransactionsCred > 4				
+
+b. Return all males who have a savings account
+SELECT a1.client					      
+       FROM soc_dem as a1
+       INNER JOIN products_actbalance as a2
+       ON a1.Client = a2.Client
+       WHERE a1.sex = 'M'					
+       AND  a2.count_SA <> '';					
+
+c. Return the average monthly debit turnover for all males who have a savings account
+SELECT AVG(inflow_outflow.VolumeDeb) as				
+       average_monthly_debit_turnover
+       FROM soc_dem INNER JOIN products_actbalance
+       ON soc_dem.Client = products_actbalance.Client
+       INNER JOIN inflow_outflow 
+       ON soc_dem.Client = inflow_outflow.Client
+       WHERE  soc_dem.Sex ='M'					
+       AND products_actbalance.Count_SA <> '';			
+
+d. Return count of all females who have a current account, binned by age in the following bins: 0-19 years, 20-59 years, and 60+ years
+SELECT count(CASE WHEN a1.Age>= 0  AND			     
+	 a1.Age < 20 THEN 1 END) AS '0 - 19',
+       count(CASE WHEN a1.Age>= 20 AND
+	 a1.Age < 60 THEN 1 END) AS '20 - 59',
+       count(CASE WHEN a1.Age>= 60 THEN 1 END)
+	 AS '60+'
+       FROM soc_dem as a1
+       INNER JOIN products_actbalance as a2
+       ON a1.client = a2.client
+       WHERE a2.Count_CA <> ''					
+       AND   a1.sex ='F';					
+
+e. Return the age and sex of all customers with a monthly credit and debit turnover that is higher than the average for either of those metrics
+SELECT a1.age, 							" Age
+       a1.sex 							" Sex
+       FROM soc_dem as a1 INNER JOIN inflow_outflow as a2
+       ON a1.Client = a2.Client 
+       WHERE a2.volumecred > (SELECT AVG(VolumeCred) FROM inflow_outflow) 
+       OR    a2.volumedeb > (SELECT AVG(VolumeDeb) FROM inflow_outflow);
+
+
+f. Create a view that joins all tables and return all information for each of the customers
+CREATE VIEW tables_consolidated AS
+SELECT a1.Client,
+       a1.Sex,
+       a1.Age,
+       a1.Tenure,
+       a2.Count_CA,
+       a2.Count_SA,
+       a2.Count_MF,.
+       a2.Count_OVD,
+       a2.Count_CC,
+       a2.Count_CL,
+       a2.ActBal_CA,
+       a2.ActBal_SA,	   
+       a2.ActBal_MF,
+       a2.ActBal_OVD,
+       a2.ActBal_CC,
+       a2.ActBal_CL,
+       a3.VolumeCred,
+       a3.VolumeCred_CA,
+       a3.TransactionsCred,
+       a3.TransactionsCred_CA,
+       a3.VolumeDeb,
+       a3.VolumeDeb_CA,
+       a3.VolumeDebCash_Card,
+       a3.VolumeDebCashless_Card,
+       a3.VolumeDeb_PaymentOrder,
+       a3.TransactionsDeb,
+       a3.TransactionsDeb_CA,
+       a3.TransactionsDebCash_Card,
+       a3.TransactionsDebCashless_Card,
+       a3.TransactionsDeb_PaymentOrder,
+       a4.Sale_MF,
+       a4.Sale_CC,
+       a4.Sale_CL,
+       a4.Revenue_MF,
+       a4.Revenue_CC,
+       a4.Revenue_CL
+       FROM soc_dem as a1 INNER JOIN products_actbalance as a2
+       ON a1.client = a2.client
+       LEFT OUTER JOIN inflow_outflow as a3
+       ON a1.client = a3.client
+       LEft OUTER JOIN sales_revenues as a4
+       ON a1.client = a4.client;
+
+
+g. Using this view identify the top 50 customers who you deem most valuable to the bank
+SELECT Client,
+       ((TransactionsCred + TransactionsDeb)*(VolumeDeb - VolumeCred)*tenure)/2 AS customer_score
+       FROM tables_consolidated
+       ORDER BY customer_score DESC
+       LIMIT 50
+
+
+I have based my calculation based on the following parameters:
+1. TransactionsCred : Number of Credit Transactions
+2. TransactionsDeb  : Number of Debit Transactions
+3. Volume Cred      : Amount of credit monthly turnover
+4. Volume Deb	    : Amount of debit monthly turnover
+5. Tenure           : The duration the customer has been with the bank
+
+Using these parameters, I computed the score for each customer and then arranged them in Descending order and finally offsetted the top 50 records.
+The score is computed based on the product of Average Debit/Credit Transactions, Net Monthly turnover and tenure.
+Thus the customer doing more transactions, having a large monthly turnover and having a long tenure with the bank will be a valuable customer. 
+
